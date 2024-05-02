@@ -10,16 +10,16 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-prompt="""You are Youtube video summarizer. You will be taking the transcript text
+prompt = """You are Youtube video summarizer. You will be taking the transcript text
 and summarizing the entire video and providing the important summary in points
-within 250 words. Please provide the summary of the text given here:  """
+within 250 words. Please provide the summary of the text given here. Also if you find any mathematical term or definition or theorem, then provide its mathematical expression or formula:  """
 
 ## getting the transcript data from yt videos
 def extract_transcript_details(youtube_video_url):
     try:
-        video_id=youtube_video_url.split("=")[1]
+        video_id = youtube_video_url.split("=")[1]
         
-        transcript_text=YouTubeTranscriptApi.get_transcript(video_id)
+        transcript_text = YouTubeTranscriptApi.get_transcript(video_id)
 
         transcript = ""
         for i in transcript_text:
@@ -28,13 +28,39 @@ def extract_transcript_details(youtube_video_url):
         return transcript
 
     except Exception as e:
-        raise e
+        st.error(f"Error extracting transcript: {e}")
 
 ## getting the summary based on Prompt from Google Gemini Pro
 def generate_gemini_content(input_text, prompt):
-    model=genai.GenerativeModel("gemini-pro")
-    response=model.generate_content(prompt+input_text)
-    return response.text
+    try:
+        model = genai.GenerativeModel("gemini-pro")
+        response = model.generate_content(prompt+input_text)
+        return response.text
+
+    except Exception as e:
+        st.error(f"Error generating summary: {e}")
+
+def extract_keywords(input_text):
+    try:
+        prompt = "Extract important keywords from the text:\n"
+        model = genai.GenerativeModel("gemini-pro")
+        response = model.generate_content(prompt + input_text)
+        keywords = response.text.split(", ")
+        return keywords
+
+    except Exception as e:
+        st.error(f"Error extracting keywords: {e}")
+
+def get_references(input_text):
+    try:
+        prompt = "Provide other references or suggestions related to the input video:\n"
+        model = genai.GenerativeModel("gemini-pro")
+        response = model.generate_content(prompt + input_text)
+        references = response.text.split("\n")
+        return references
+
+    except Exception as e:
+        st.error(f"Error generating references: {e}")
 
 def get_sentiment_label(polarity):
     if polarity > 0:
@@ -57,7 +83,7 @@ if youtube_link:
     video_id = youtube_link.split("=")[1]
     st.image(f"http://img.youtube.com/vi/{video_id}/0.jpg", use_column_width=True)
 
-# If input text is provided and the button is clicked, generate summary and sentiment analysis
+# If input text is provided and the button is clicked, generate summary, sentiment analysis, and extract keywords
 if st.button("Get Detailed Notes"):
     if youtube_link:
         transcript_text = extract_transcript_details(youtube_link)
@@ -81,3 +107,20 @@ if st.button("Get Detailed Notes"):
         st.write(f"Polarity: {sentiment.polarity}")
         st.write(f"Subjectivity: {sentiment.subjectivity}")
         st.write(f"Sentiment: {sentiment_label}")
+
+        # Extract keywords
+        keywords = extract_keywords(transcript_text)
+        st.markdown("## Extracted Keywords:")
+        if keywords:
+            st.write(", ".join(keywords))
+        else:
+            st.write("No keywords extracted.")
+
+        # Get references
+        references = get_references(transcript_text)
+        st.markdown("## References and Suggestions:")
+        if references:
+            for ref in references:
+                st.write(ref)
+        else:
+            st.write("No references or suggestions generated.")
